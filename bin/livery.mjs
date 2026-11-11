@@ -2,6 +2,7 @@
 import path from "node:path"
 import { decompileProject, compileSystem } from "../src/system.mjs"
 import { startStudio } from "../src/studio.mjs"
+import { startMcp } from "../src/mcp.mjs"
 
 const [cmd, ...args] = process.argv.slice(2)
 const usage = `livery <command>
@@ -9,7 +10,8 @@ const usage = `livery <command>
   decompile <shadcn-project> [--to <system-dir>]   lift every token and class string into a system
   compile <system-dir> --into <project>            write the system back as shadcn source
   studio <system-dir> --project <project> [--port 5310]
-                                                   edit foundations with a live preview`
+                                                   edit the system with a live preview
+  mcp <system-dir> --project <project>             the same edits for agents, over MCP (stdio)`
 
 const flag = (name, fallback) => {
   const i = args.indexOf(name)
@@ -31,6 +33,8 @@ if (cmd === "decompile" && args[0]) {
   console.log(`Wrote ${written.length} files`)
 } else if (cmd === "studio" && args[0] && flag("--project")) {
   await startStudio({ systemDir: path.resolve(args[0]), projectDir: path.resolve(flag("--project")), port: Number(flag("--port", 5310)) })
+} else if (cmd === "mcp" && args[0] && flag("--project")) {
+  await startMcp({ systemDir: path.resolve(args[0]), projectDir: path.resolve(flag("--project")) })
 } else {
   console.log(usage)
   process.exit(cmd ? 1 : 0)

@@ -11,8 +11,9 @@ Status: **early.**
 - **Reach:** every role and foundation shows which components use it and how often, read from the recipes.
 - **Components:** every class of every part, variant and state is editable. You can add and remove variant keys and change defaults; Livery rewrites only those properties in the source, in the file's own style. Each component sheet renders the real component across its variants, and hovering a part outlines it in the preview. Checks flag classes that bypass the system: Tailwind palette colours, raw colours, one-off sizes and fixed durations.
 - **Studio:** edit all of the above and watch the real components update live in light and dark.
+- **Agents:** an MCP server gives an agent the same named operations the studio uses, all or nothing per call, plus checks and screenshots of the real components. With the studio open, the person watches the agent's edits land live.
 
-Agent tools (MCP), the base kit output and upgrades come next. See [APPROACH.md](APPROACH.md).
+The base kit output and upgrades come next. See [APPROACH.md](APPROACH.md).
 
 ## Try it
 
@@ -33,6 +34,38 @@ cp -R .work/stock .work/preview
 node bin/livery.mjs studio .work/system --project .work/preview
 # http://localhost:5310
 ```
+
+## Agents (MCP)
+
+```sh
+node bin/livery.mjs mcp .work/system --project .work/preview
+```
+
+For Claude Code, in the project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "livery": {
+      "command": "node",
+      "args": ["/path/to/livery/bin/livery.mjs", "mcp", "/path/to/system", "--project", "/path/to/project"]
+    }
+  }
+}
+```
+
+| Tool | What it does |
+|---|---|
+| `get_system` | Themes, scales, overridden foundations, contrast failures, and every operation with its arguments. Start here. |
+| `get_tokens` | Colour roles (reference, hex, how many components use it), scales, foundations, `@theme` variables |
+| `edit_tokens` | `set_token`, `set_scale`, `set_foundation`, `set_type_scale`, `set_shadows`, `reset_foundation`… in order, all or nothing; returns contrast failures before → after |
+| `list_components` / `get_component` | Every class list by path, variant keys, defaults, the roles a component uses, classes that bypass the system |
+| `edit_component` | `set_classes`, `add_classes`, `remove_class`, `replace_class`, `add_variant_key`, `remove_variant_key`, `set_default` |
+| `check` | WCAG contrast per theme, and bypassing classes per component |
+| `screenshot` | A component's variant sheet, or the specimen with a part outlined, in light, dark or both, rendered by the project's own Vite |
+| `compile` | Write the system as shadcn source into another project |
+
+Edits write the system and compile into the project at once. Screenshots use the open studio's preview when there is one, otherwise the server starts its own (headless Chrome or Chromium; set `LIVERY_CHROME` to point at one).
 
 ## The system
 

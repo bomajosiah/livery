@@ -14,6 +14,9 @@ document.documentElement.style.colorScheme = theme === "dark" ? "dark" : "light"
 
 const highlight = document.createElement("style")
 document.head.append(highlight)
+const outline = (part: string) =>
+  (highlight.textContent = part ? `[data-slot="${CSS.escape(part)}"] { outline: 2px dashed #f43f5e !important; outline-offset: 2px; }` : "")
+outline(params.get("part") ?? "")
 
 function Preview() {
   const [component, setComponent] = useState(params.get("component") ?? "")
@@ -21,11 +24,7 @@ function Preview() {
     const onMessage = (e: MessageEvent) => {
       if (e.data?.type !== "livery") return
       if ("component" in e.data) setComponent(e.data.component ?? "")
-      if ("part" in e.data) {
-        highlight.textContent = e.data.part
-          ? `[data-slot="${CSS.escape(e.data.part)}"] { outline: 2px dashed #f43f5e !important; outline-offset: 2px; }`
-          : ""
-      }
+      if ("part" in e.data) outline(e.data.part ?? "")
     }
     addEventListener("message", onMessage)
     return () => removeEventListener("message", onMessage)
@@ -36,6 +35,8 @@ function Preview() {
     const t = setTimeout(() => {
       const found = component ? document.querySelectorAll(`[data-slot^="${CSS.escape(component)}"]`).length : 0
       parent.postMessage({ type: "livery-preview", component, found }, "*")
+      // Headless screenshots wait for this.
+      ;(window as unknown as { __liveryReady: unknown }).__liveryReady = { component, found }
     }, 150)
     return () => clearTimeout(t)
   })

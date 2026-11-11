@@ -1,6 +1,7 @@
 // A component sheet: every key of a component's first two variants as a grid (plus a
 // disabled row), rendered with the project's real components.
 import { Component, type ReactNode } from "react"
+import { PlusIcon } from "lucide-react"
 import { AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsTrigger } from "@/components/ui/tabs"
@@ -56,7 +57,10 @@ export function Sheet({ component }: { component: string }) {
         const [rowDim, colDim] = Object.keys(e.variants)
         const rows = rowDim ? e.variants[rowDim] : [""]
         const cols = colDim ? e.variants[colDim] : [""]
-        const render = (props: Props) => (fixtures[e.export] ?? ((C, p, label) => <C {...p}>{label}</C>))(C, props, e.export)
+        // Icon sizes get an icon, not a label.
+        const plain = (C: (p: Props) => ReactNode, p: Props, label: string) =>
+          <C {...p}>{Object.values(p).some((v) => typeof v === "string" && v.startsWith("icon")) ? <PlusIcon /> : label}</C>
+        const render = (props: Props) => (fixtures[e.export] ?? plain)(C, props, e.export)
         return (
           <section key={e.cva} className="flex flex-col gap-3">
             <h2 className="text-xs text-muted-foreground">

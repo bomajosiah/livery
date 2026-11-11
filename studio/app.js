@@ -15,16 +15,32 @@ const el = (tag, attrs = {}, ...children) => {
   return node
 }
 
+let known = 0
+
 async function load() {
   state = await (await fetch("/api/state")).json()
+  known = state.version
   render()
 }
+
+// Pick up edits made elsewhere (an agent through MCP, or the files by hand).
+async function sync() {
+  const { version } = await (await fetch("/api/version")).json()
+  if (version === known) return
+  if (document.activeElement?.matches("input, select, textarea")) return
+  await load()
+  if (components) components = await (await fetch("/api/components")).json()
+  if (current) current = await (await fetch(`/api/components/${current.name}`)).json()
+  if (!$("#view-components").hidden) current && !$("#component-detail").hidden ? renderComponent() : renderComponentList()
+}
+setInterval(() => sync().catch(() => {}), 1500)
 
 async function op(name, args) {
   const res = await fetch("/api/op", { method: "POST", body: JSON.stringify({ op: name, args }) })
   const body = await res.json()
   if (!res.ok) return showError(body.error)
   state = body
+  known = state.version
   render()
 }
 
@@ -441,6 +457,7 @@ async function recipeOp(op, args) {
   const body = await res.json()
   if (!res.ok) return showError(body.error)
   current = body
+  known = (await (await fetch("/api/version")).json()).version
   const listed = components.find((c) => c.name === current.name)
   if (listed) listed.checks = current.checks.length
   renderComponent()
