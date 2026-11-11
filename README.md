@@ -9,9 +9,10 @@ Status: **early.**
 - **Foundations:** theme colours are stored as references to primitive scales (`neutral.900`, `base.white / 10%`), taken from the project's own Tailwind palette. You can generate new scales from a seed colour or a hue and chroma, and every text-on-surface pair gets a WCAG contrast check.
 - **Foundations:** spacing, a modular type scale, font weights, elevation (shadow strength and tint) and motion (default duration and easing) override Tailwind's own theme variables. Only changes are written, so an untouched system still compiles to stock.
 - **Reach:** every role and foundation shows which components use it and how often, read from the recipes.
+- **Components:** every class of every part, variant and state is editable. You can add and remove variant keys and change defaults; Livery rewrites only those properties in the source, in the file's own style. Each component sheet renders the real component across its variants, and hovering a part outlines it in the preview. Checks flag classes that bypass the system: Tailwind palette colours, raw colours, one-off sizes and fixed durations.
 - **Studio:** edit all of the above and watch the real components update live in light and dark.
 
-Component editing, agent tools (MCP) and upgrades come next. See [APPROACH.md](APPROACH.md).
+Agent tools (MCP), the base kit output and upgrades come next. See [APPROACH.md](APPROACH.md).
 
 ## Try it
 

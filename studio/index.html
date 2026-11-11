@@ -20,6 +20,18 @@
     </header>
     <main class="layout">
       <aside class="panel">
+        <nav class="tabs" id="tabs" aria-label="Editor">
+          <button data-view="foundations" aria-pressed="true">Foundations</button>
+          <button data-view="components" aria-pressed="false">Components</button>
+        </nav>
+        <div id="view-components" hidden>
+          <div id="component-list">
+            <input id="component-search" type="search" placeholder="Search components" aria-label="Search components" />
+            <ul id="components" class="components"></ul>
+          </div>
+          <div id="component-detail" hidden></div>
+        </div>
+        <div id="view-foundations">
         <section>
           <h2>Scales</h2>
           <div id="scales"></div>
@@ -117,6 +129,7 @@
           <h2>Contrast <span id="checks-summary" class="muted"></span></h2>
           <ul id="checks" class="checks"></ul>
         </section>
+        </div>
       </aside>
       <section class="frames" id="frame-area">
         <figure data-theme="light"><figcaption>Light</figcaption><iframe title="Light preview"></iframe></figure>

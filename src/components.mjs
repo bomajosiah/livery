@@ -1,6 +1,7 @@
 // Decompile a shadcn component file into a recipe (every class string, named)
 // plus a skeleton (the rest of the source, with placeholders), and compile back.
 import ts from "typescript"
+import { cvaInfo, applyStructure } from "./structure.mjs"
 
 export const MARK = "__livery__:"
 
@@ -140,9 +141,10 @@ export function decompileComponent(source, fileName) {
 
   const visit = (node) => {
     const text = literalText(node)
-    if (text !== null && text.trim() !== "") {
+    if (text !== null) {
+      // Empty strings only count as variant values (e.g. icon: ""), so keys aren't lost.
       const c = classify(node)
-      if (c) {
+      if (c && (text.trim() !== "" || (c.kind === "cva" && c.path[0] === "variants"))) {
         let id
         if (c.kind === "cva") {
           const entry = (recipe.cva[c.name] ??= { base: null, variants: {}, compound: {} })
@@ -172,8 +174,10 @@ export function decompileComponent(source, fileName) {
   for (const e of edits.sort((a, b) => b.start - a.start)) {
     skeleton = skeleton.slice(0, e.start) + MARK + e.id + skeleton.slice(e.end)
   }
+  const info = cvaInfo(source, fileName)
   for (const k of Object.keys(recipe.cva)) {
     if (!Object.keys(recipe.cva[k].compound).length) delete recipe.cva[k].compound
+    if (info[k]) Object.assign(recipe.cva[k], info[k])
   }
   if (!Object.keys(recipe.cva).length) delete recipe.cva
   return { recipe, skeleton, lifted: edits.length }
@@ -193,7 +197,7 @@ function lookup(recipe, id) {
 
 export function compileComponent(recipe, skeleton) {
   const re = new RegExp(MARK.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([A-Za-z0-9_@#.\\-]+)", "g")
-  return skeleton.replace(re, (_, id) => {
+  return applyStructure(skeleton, recipe, recipe.file).replace(re, (_, id) => {
     const value = lookup(recipe, id)
     if (value === undefined) throw new Error(`${recipe.file}: no recipe entry for ${id}`)
     return fromClasses(value)

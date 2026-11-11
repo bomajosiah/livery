@@ -371,3 +371,219 @@ function render() {
 }
 
 load()
+
+// --- components -----------------------------------------------------------------
+
+const KINDS = { palette: "Tailwind palette colour, not a role", "raw-color": "Colour written as a value", "raw-size": "One-off size", "fixed-duration": "Fixed duration" }
+let components = null
+let current = null // { name, recipe, checks, tokens }
+let found = null
+
+const frames = () => [...document.querySelectorAll("figure[data-theme] iframe")]
+const tell = (msg) => frames().forEach((f) => f.contentWindow?.postMessage({ type: "livery", ...msg }, "*"))
+
+for (const f of frames()) f.addEventListener("load", () => tell({ component: current?.name ?? "" }))
+addEventListener("message", (e) => {
+  if (e.data?.type !== "livery-preview" || e.data.component !== current?.name) return
+  found = e.data.found
+  const note = $("#found-note")
+  if (note) note.textContent = found ? "" : "Not in the specimen"
+})
+
+$("#tabs").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-view]")
+  if (!b) return
+  for (const x of $("#tabs").children) x.setAttribute("aria-pressed", String(x === b))
+  const comp = b.dataset.view === "components"
+  $("#view-components").hidden = !comp
+  $("#view-foundations").hidden = comp
+  if (comp) {
+    if (!components) components = await (await fetch("/api/components")).json()
+    renderComponentList()
+    if (current) tell({ component: current.name })
+  } else tell({ component: "", part: "" })
+})
+
+$("#component-search").addEventListener("input", renderComponentList)
+
+function renderComponentList() {
+  const q = $("#component-search").value.trim().toLowerCase()
+  $("#components").replaceChildren(
+    ...components
+      .filter((c) => c.name.includes(q))
+      .map((c) =>
+        el(
+          "li",
+          {},
+          el(
+            "button",
+            { onclick: () => openComponent(c.name) },
+            el("span", {}, c.name),
+            el("span", { class: "meta" }, [c.parts && `${c.parts} parts`, c.variants && `${c.variants} variants`].filter(Boolean).join(" · ")),
+            c.checks ? el("span", { class: "flag", title: "Classes that bypass the system" }, c.checks) : el("span"),
+          ),
+        ),
+      ),
+  )
+}
+
+async function openComponent(name) {
+  current = await (await fetch(`/api/components/${name}`)).json()
+  found = null
+  $("#component-list").hidden = true
+  $("#component-detail").hidden = false
+  tell({ component: name, part: "" })
+  renderComponent()
+}
+
+async function recipeOp(op, args) {
+  const res = await fetch("/api/recipe-op", { method: "POST", body: JSON.stringify({ op, args: { component: current.name, ...args } }) })
+  const body = await res.json()
+  if (!res.ok) return showError(body.error)
+  current = body
+  const listed = components.find((c) => c.name === current.name)
+  if (listed) listed.checks = current.checks.length
+  renderComponent()
+}
+
+// Split "dark:hover:bg-x" into its conditions and its utility (":" outside brackets).
+function splitClass(cls) {
+  let depth = 0, at = 0
+  for (let i = 0; i < cls.length; i++) {
+    const ch = cls[i]
+    if (ch === "[" || ch === "(") depth++
+    else if (ch === "]" || ch === ")") depth--
+    else if (ch === ":" && depth === 0) at = i + 1
+  }
+  return [cls.slice(0, at), cls.slice(at)]
+}
+
+function chips(path, value) {
+  const list = Array.isArray(value) ? value : value.raw.split(/\s+/).filter(Boolean)
+  const flagged = new Set(current.checks.filter((c) => c.path === path).map((c) => c.class))
+  const box = el("div", { class: "chips" })
+  list.forEach((cls, i) => {
+    const [pre, util] = splitClass(cls)
+    const chip = el(
+      "span",
+      { class: `chip${flagged.has(cls) ? " flagged" : ""}`, title: flagged.has(cls) ? KINDS[current.checks.find((c) => c.class === cls).kind] : cls },
+      el("span", { class: "txt" }, pre ? el("span", { class: "pre" }, pre) : null, util),
+      el("button", { class: "x", "aria-label": `Remove ${cls}`, onclick: () => recipeOp("remove_class", { path, class: cls }) }, "×"),
+    )
+    chip.querySelector(".txt").addEventListener("click", () => {
+      const input = el("input", { value: cls, size: Math.max(6, cls.length), "aria-label": "Class" })
+      chip.replaceChildren(input)
+      input.focus()
+      input.select()
+      const done = (commit) => {
+        if (!commit) return renderComponent()
+        const next = input.value.trim().split(/\s+/).filter(Boolean)
+        recipeOp("set_classes", { path, classes: [...list.slice(0, i), ...next, ...list.slice(i + 1)] })
+      }
+      input.addEventListener("keydown", (e) => e.key === "Enter" ? done(true) : e.key === "Escape" && done(false))
+      input.addEventListener("blur", () => done(input.value.trim() !== cls))
+    })
+    box.append(chip)
+  })
+  const add = el("input", { class: "chip-add", placeholder: "+ class", "aria-label": `Add classes to ${path}` })
+  add.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && add.value.trim()) recipeOp("add_classes", { path, classes: add.value.trim() })
+  })
+  box.append(add)
+  return box
+}
+
+function renderComponent() {
+  const { name, recipe, checks, tokens } = current
+  const d = $("#component-detail")
+  const head = el(
+    "div",
+    { class: "detail-head" },
+    el("button", { class: "back", onclick: () => ((current = null), ($("#component-detail").hidden = true), ($("#component-list").hidden = false), tell({ component: "", part: "" })) }, "←"),
+    el("h2", {}, name),
+    el("span", { class: "note", id: "found-note" }, found === 0 ? "Not in the specimen" : ""),
+  )
+  const sections = [head]
+
+  for (const [cva, entry] of Object.entries(recipe.cva ?? {})) {
+    const s = el("section", {}, el("h2", {}, cva, el("span", { class: "muted" }, entry.usedBy?.join(", ") ?? "")))
+    if (entry.base) s.append(el("div", { class: "list-row" }, el("div", { class: "key" }, el("span", {}, "base")), chips(`cva.${cva}.base`, entry.base)))
+    for (const [variant, keys] of Object.entries(entry.variants ?? {})) {
+      s.append(el("div", { class: "group-title" }, variant))
+      for (const [key, value] of Object.entries(keys)) {
+        const isDefault = entry.defaults?.[variant] === key
+        const actions = el("span", { class: "actions" })
+        if (isDefault) actions.append(el("span", { class: "is-default" }, "default"))
+        else {
+          if (entry.defaults && variant in entry.defaults) actions.append(el("button", { title: "Make default", onclick: () => recipeOp("set_default", { cva, variant, key }) }, "default"))
+          actions.append(el("button", { title: `Remove ${variant}=${key}`, onclick: () => recipeOp("remove_variant_key", { cva, variant, key }) }, "remove"))
+        }
+        s.append(el("div", { class: "list-row" }, el("div", { class: "key" }, el("span", { title: key }, key), actions), chips(`cva.${cva}.variants.${variant}.${key}`, value)))
+      }
+      const keyInput = el("input", { placeholder: "new key", "aria-label": `New ${variant} key` })
+      const copy = el("select", { "aria-label": "Copy classes from" }, el("option", { value: "" }, "empty"), Object.keys(keys).map((k) => el("option", { value: k }, `copy ${k}`)))
+      s.append(
+        el(
+          "form",
+          {
+            class: "add-key",
+            onsubmit: (e) => {
+              e.preventDefault()
+              if (keyInput.value.trim()) recipeOp("add_variant_key", { cva, variant, key: keyInput.value.trim(), copyFrom: copy.value || undefined })
+            },
+          },
+          keyInput,
+          copy,
+          el("button", { type: "submit" }, "Add"),
+        ),
+      )
+    }
+    for (const [i, value] of Object.entries(entry.compound ?? {})) {
+      s.append(el("div", { class: "list-row" }, el("div", { class: "key" }, el("span", {}, `compound ${i}`)), chips(`cva.${cva}.compound.${i}`, value)))
+    }
+    sections.push(s)
+  }
+
+  const parts = Object.entries(recipe.parts ?? {})
+  if (parts.length) {
+    const s = el("section", {}, el("h2", {}, "Parts"))
+    for (const [slot, value] of parts) {
+      const row = el("div", { class: "list-row" }, el("div", { class: "key" }, el("span", { title: slot }, slot)), chips(`parts.${slot}`, value))
+      const part = slot.replace(/#\d+$/, "")
+      if (!part.startsWith("@")) {
+        row.addEventListener("mouseenter", () => tell({ part }))
+        row.addEventListener("mouseleave", () => tell({ part: "" }))
+      }
+      s.append(row)
+    }
+    sections.push(s)
+  }
+
+  const used = Object.entries(tokens).sort((a, b) => b[1] - a[1])
+  if (used.length) {
+    sections.push(el("section", {}, el("h2", {}, "Uses"), el("div", { class: "used" }, used.map(([t, n]) => el("span", {}, t, el("small", {}, n))))))
+  }
+
+  const from = el("input", { placeholder: "from", "aria-label": "Class to replace" })
+  const to = el("input", { placeholder: "to", "aria-label": "Replacement class" })
+  sections.push(
+    el(
+      "section",
+      {},
+      el("h2", {}, "Checks", el("span", { class: "muted" }, checks.length ? `${checks.length}` : "none")),
+      el(
+        "ul",
+        { class: "findings" },
+        checks.map((c) => el("li", {}, el("code", {}, c.class), " ", el("span", { class: "where" }, `${KINDS[c.kind]} · ${c.path.replace(/^cva\.[^.]+\./, "").replace(/^parts\./, "")}`))),
+      ),
+      el(
+        "form",
+        { class: "replace", onsubmit: (e) => (e.preventDefault(), from.value && to.value && recipeOp("replace_class", { from: from.value.trim(), to: to.value.trim() })) },
+        from,
+        to,
+        el("button", { type: "submit" }, "Replace all"),
+      ),
+    ),
+  )
+  d.replaceChildren(...sections)
+}

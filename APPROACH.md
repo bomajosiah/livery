@@ -1,6 +1,6 @@
 # Livery: the approach
 
-2026-11-11 · Status: **S0 (round trip) passing. S1 (foundations) built:** primitive scales and references, ramp generation, contrast checks, spacing, type scale, weights, elevation, motion, token reach, and a studio for all of it with a live light and dark preview. Limit: many components hard-code durations (`duration-100`), which belong to S2's component recipes. S2 onward not built.
+2026-11-11 · Status: **S0 (round trip) passing. S1 (foundations) built:** primitive scales and references, ramp generation, contrast checks, spacing, type scale, weights, elevation, motion, token reach, and a studio for all of it with a live light and dark preview. **S2 (components) built:** class editing for every part, variant and state; add and remove variant keys; change defaults (written to `defaultVariants` and each user's parameter default); replace a class across a component; checks for palette colours, raw colours, one-off sizes and fixed durations; variant sheets and part highlighting in the preview. Not yet: adding a new variant dimension or new parts, and compound variants beyond class edits. S3 onward not built.
 
 Decided 2026-11-11: name **Livery**, its own open-source repo (`bomajosiah/livery`, MIT), shadcn's default base library (Base UI, `nova` preset). Whether it becomes a product is decided after it's proven to work.
 
