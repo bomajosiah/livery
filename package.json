@@ -1,0 +1,21 @@
+{
+  "name": "livery",
+  "version": "0.0.1",
+  "description": "Start a design system from shadcn and customize every part of it, visually or through an agent.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "livery": "bin/livery.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "baseline": "node scripts/baseline.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "postcss": "^8.5.6",
+    "typescript": "^5.9.3"
+  }
+}
