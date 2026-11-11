@@ -9,6 +9,8 @@ import { compileTheme } from "./theme.mjs"
 import { loadTailwindPalette, resolve } from "./palette.mjs"
 import { applyOperation } from "./edit.mjs"
 import { contrastReport } from "./checks.mjs"
+import { loadTailwindDefaults, GROUPS } from "./foundations.mjs"
+import { computeReach } from "./reach.mjs"
 import { oklchToHex, parseOklch } from "./color.mjs"
 
 const UI = path.resolve(import.meta.dirname, "../studio")
@@ -19,6 +21,7 @@ export async function startStudio({ systemDir, projectDir, port = 5310, previewP
   const system = JSON.parse(fs.readFileSync(path.join(systemDir, "system.json"), "utf8"))
   const tokensFile = path.join(systemDir, "tokens.json")
   const palette = loadTailwindPalette(projectDir)
+  const defaults = loadTailwindDefaults(projectDir)
 
   // Compile the whole system into the project once, then install the preview entry.
   compileSystem(systemDir, projectDir)
@@ -63,6 +66,11 @@ export async function startStudio({ systemDir, projectDir, port = 5310, previewP
       scales,
       paletteScales: Object.keys(palette).filter((s) => s !== "base"),
       checks: contrastReport(tokens),
+      defaults,
+      groups: GROUPS,
+      foundations: Object.fromEntries(Object.keys(defaults).map((k) => [k, tokens.foundations?.[k] ?? defaults[k]])),
+      overridden: Object.keys(tokens.foundations ?? {}),
+      reach: computeReach(systemDir, tokens),
       preview: `http://localhost:${previewPort}/livery-preview.html`,
     }
   }
@@ -80,7 +88,7 @@ export async function startStudio({ systemDir, projectDir, port = 5310, previewP
         for await (const chunk of req) body += chunk
         const { op, args } = JSON.parse(body || "{}")
         const tokens = readTokens()
-        applyOperation(tokens, op, args, { palette })
+        applyOperation(tokens, op, args, { palette, defaults })
         writeTokens(tokens)
         return send(200, state())
       }

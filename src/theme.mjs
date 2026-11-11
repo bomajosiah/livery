@@ -4,6 +4,7 @@
 import postcss from "postcss"
 import { MARK } from "./components.mjs"
 import { toReference, resolve } from "./palette.mjs"
+import { foundationsCss } from "./foundations.mjs"
 
 // The theme a rule belongs to: ":root" → light, ".dark" → dark, ".theme-x" → x.
 function themeName(selector) {
@@ -54,11 +55,12 @@ export function decompileTheme(css, fileName = "index.css", { palette, preferred
 }
 
 export function compileTheme(tokens, skeleton) {
-  return skeleton.replace(new RegExp(MARK.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([\\w.-]+)", "g"), (_, id) => {
+  const css = skeleton.replace(new RegExp(MARK.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([\\w.-]+)", "g"), (_, id) => {
     const [section, ...rest] = id.split(".")
     const value =
       section === "theme" ? tokens.theme?.[rest.join(".")] : tokens.themes?.[rest[0]]?.[rest.slice(1).join(".")]
     if (value === undefined) throw new Error(`${tokens.file}: no token for ${id}`)
     return resolve(value, tokens.primitives)
   })
+  return css + foundationsCss(tokens.foundations)
 }

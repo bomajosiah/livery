@@ -99,6 +99,15 @@ export function App() {
         </Card>
       </div>
 
+      <div className="flex flex-wrap gap-4">
+        {["shadow-sm", "shadow-md", "shadow-lg", "shadow-xl"].map((shadow) => (
+          <div key={shadow} className={`flex w-40 flex-col gap-1 rounded-lg bg-popover p-3 text-popover-foreground ${shadow}`}>
+            <span className="text-sm font-medium">Menu</span>
+            <span className="text-xs text-muted-foreground">{shadow}</span>
+          </div>
+        ))}
+      </div>
+
       <Alert variant="destructive">
         <AlertTitle>Payment failed</AlertTitle>
         <AlertDescription>Update your card to keep your workspace active.</AlertDescription>

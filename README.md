@@ -7,7 +7,9 @@ shadcn gives you good defaults as code you own. Owning them usually means editin
 Status: **early.**
 - **Round trip:** stock shadcn (63 components, Base UI, the `nova` preset) decompiles into a system and compiles back byte for byte.
 - **Foundations:** theme colours are stored as references to primitive scales (`neutral.900`, `base.white / 10%`), taken from the project's own Tailwind palette. You can generate new scales from a seed colour or a hue and chroma, and every text-on-surface pair gets a WCAG contrast check.
-- **Studio:** edit scales, roles, radius and fonts, and watch the real components update live in light and dark.
+- **Foundations:** spacing, a modular type scale, font weights, elevation (shadow strength and tint) and motion (default duration and easing) override Tailwind's own theme variables. Only changes are written, so an untouched system still compiles to stock.
+- **Reach:** every role and foundation shows which components use it and how often, read from the recipes.
+- **Studio:** edit all of the above and watch the real components update live in light and dark.
 
 Component editing, agent tools (MCP) and upgrades come next. See [APPROACH.md](APPROACH.md).
 
@@ -36,7 +38,8 @@ node bin/livery.mjs studio .work/system --project .work/preview
 ```
 system/
   system.json              source style, base library, shadcn version, component list
-  tokens.json              primitives (colour scales), every theme token as a reference or value, @theme
+  tokens.json              primitives (colour scales), every theme token as a reference or value, @theme,
+                           and foundations: the Tailwind theme variables you've changed
   components/<name>.json   every class string of every part, variant and state
   skeleton/                the rest of the source, with placeholders
 ```

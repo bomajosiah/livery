@@ -134,7 +134,14 @@ function renderRoles() {
         value,
       )
     })
-    box.append(el("div", { class: "role" }, el("span", { class: "label", title: name }, name), ...cells))
+    const r = state.reach[name]
+    const label = el(
+      "span",
+      { class: "label", title: r ? `${name}: ${r.components.join(", ")}` : `${name}: not used by any component` },
+      name,
+      el("small", {}, r ? r.components.length : "–"),
+    )
+    box.append(el("div", { class: "role" }, label, ...cells))
   }
 }
 
@@ -185,24 +192,155 @@ document.addEventListener("pointerdown", (e) => {
 })
 document.addEventListener("keydown", (e) => e.key === "Escape" && closePicker())
 
-// --- shape and type --------------------------------------------------------------
+// --- foundations ---------------------------------------------------------------
 
+const F = () => state.foundations
+const rem = (v) => parseFloat(String(v))
+const reachText = (...names) => {
+  const comps = new Set(), uses = names.reduce((n, k) => {
+    for (const c of state.reach[k]?.components ?? []) comps.add(c)
+    return n + (state.reach[k]?.uses ?? 0)
+  }, 0)
+  return comps.size ? `${comps.size} components · ${uses} classes` : "Not used by any component"
+}
+const setIfIdle = (sel, value) => {
+  if (document.activeElement !== $(sel)) $(sel).value = value
+}
+// "calc(1.25 / 0.875)" → 1.43
+const evalCalc = (v) => {
+  const m = String(v).match(/calc\(\s*([\d.]+)\s*\/\s*([\d.]+)\s*\)/)
+  return m ? +(m[1] / m[2]).toFixed(2) : +v
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-reset-group]")
+  if (b) op("reset_foundation", { group: b.dataset.resetGroup })
+})
+
+// Shape
 const sendRadius = throttle((v) => op("set_token", { theme: "light", name: "radius", value: `${v}rem` }))
 $("#radius").addEventListener("input", (e) => {
   $("#radius-out").textContent = `${e.target.value}rem`
   sendRadius(e.target.value)
 })
+
+// Spacing
+const sendSpacing = throttle((v) => op("set_foundation", { name: "spacing", value: `${v}rem` }))
+$("#spacing").addEventListener("input", (e) => {
+  $("#spacing-out").textContent = `${e.target.value}rem`
+  sendSpacing(e.target.value)
+})
+
+// Type
 for (const id of ["font-sans", "font-heading"]) {
   $(`#${id}`).addEventListener("change", (e) => op("set_theme_var", { name: id, value: e.target.value }))
 }
+const sendType = throttle(() =>
+  $("#type-ratio").value
+    ? op("set_type_scale", { base: +$("#type-base").value, ratio: +$("#type-ratio").value })
+    : op("reset_foundation", { names: state.groups.type }),
+)
+$("#type-base").addEventListener("input", (e) => {
+  $("#type-base-out").textContent = `${e.target.value}rem`
+  if (!$("#type-ratio").value) $("#type-ratio").value = "1.2"
+  sendType()
+})
+$("#type-ratio").addEventListener("change", sendType)
 
-function renderShape() {
-  const r = parseFloat(state.tokens.themes.light.radius ?? "0.625")
-  if (document.activeElement !== $("#radius")) $("#radius").value = r
+// Elevation
+const sendShadows = throttle(() => op("set_shadows", { intensity: +$("#shadow-intensity").value, color: $("#shadow-color").value }))
+$("#shadow-intensity").addEventListener("input", (e) => {
+  $("#shadow-intensity-out").textContent = `${(+e.target.value).toFixed(2)}×`
+  sendShadows()
+})
+$("#shadow-color").addEventListener("change", sendShadows)
+
+// Motion
+const EASINGS = {
+  Standard: "cubic-bezier(0.4, 0, 0.2, 1)",
+  Snappy: "cubic-bezier(0.2, 0, 0, 1)",
+  Gentle: "cubic-bezier(0.25, 0.1, 0.25, 1)",
+  Overshoot: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+  Linear: "linear",
+}
+const sendDuration = throttle((v) => op("set_foundation", { name: "default-transition-duration", value: `${v}ms` }))
+$("#duration").addEventListener("input", (e) => {
+  $("#duration-out").textContent = `${e.target.value}ms`
+  sendDuration(e.target.value)
+})
+$("#easing").addEventListener("change", (e) => op("set_foundation", { name: "default-transition-timing-function", value: e.target.value }))
+$("#motion-demo").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"))
+
+function renderFoundations() {
+  const f = F()
+  const overridden = new Set(state.overridden)
+
+  const r = rem(state.tokens.themes.light.radius ?? "0.625")
+  setIfIdle("#radius", r)
   $("#radius-out").textContent = `${r}rem`
-  for (const id of ["font-sans", "font-heading"]) {
-    if (document.activeElement !== $(`#${id}`)) $(`#${id}`).value = state.tokens.theme?.[id] ?? ""
-  }
+  $("#reach-radius").textContent = reachText("radius")
+
+  const unit = rem(f.spacing)
+  setIfIdle("#spacing", unit)
+  $("#spacing-out").textContent = `${unit}rem`
+  $("#spacing-ruler").replaceChildren(
+    ...[1, 2, 3, 4, 6, 8, 12].map((n) => el("span", { title: `${n} × ${unit}rem`, style: { height: `${n * unit * 16}px` } })),
+  )
+  $("#reach-spacing").textContent = reachText("spacing")
+
+  for (const id of ["font-sans", "font-heading"]) setIfIdle(`#${id}`, state.tokens.theme?.[id] ?? "")
+  const gen = state.tokens.generators?.["@type"]
+  setIfIdle("#type-base", gen?.base ?? rem(f["text-base"]))
+  $("#type-base-out").textContent = `${gen?.base ?? rem(f["text-base"])}rem`
+  setIfIdle("#type-ratio", gen ? String(gen.ratio) : "")
+  $("#type-scale").replaceChildren(
+    ...["xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl"].map((s) => {
+      const size = f[`text-${s}`]
+      const lh = evalCalc(f[`text-${s}--line-height`])
+      const n = state.reach[`text-${s}`]?.components.length
+      return el(
+        "div",
+        { class: `type-row${overridden.has(`text-${s}`) ? " overridden" : ""}` },
+        el("span", { class: "name" }, s),
+        el("span", { class: "sample", style: { fontSize: size, lineHeight: lh } }, "Livery"),
+        el("span", { class: "meta", title: n ? state.reach[`text-${s}`].components.join(", ") : "" }, `${rem(size)}rem / ${lh}${n ? ` · ${n}` : ""}`),
+      )
+    }),
+  )
+  $("#weights").replaceChildren(
+    ...["normal", "medium", "semibold", "bold"].map((w) => {
+      const name = `font-weight-${w}`
+      const select = el("select", { "aria-label": `${w} weight` }, [100, 200, 300, 400, 500, 600, 700, 800, 900].map((v) => el("option", { value: v }, v)))
+      select.value = String(f[name])
+      select.addEventListener("change", () => op("set_foundation", { name, value: select.value }))
+      const n = state.reach[name]?.components.length
+      return el("label", { title: n ? `${n} components` : "" }, w, select)
+    }),
+  )
+
+  const sgen = state.tokens.generators?.["@shadow"]
+  setIfIdle("#shadow-intensity", sgen?.intensity ?? 1)
+  $("#shadow-intensity-out").textContent = `${(sgen?.intensity ?? 1).toFixed(2)}×`
+  const tints = ["base.black", ...Object.keys(state.scales).filter((k) => k !== "base").flatMap((k) => [`${k}.950`, `${k}.900`])]
+  $("#shadow-color").replaceChildren(...tints.map((t) => el("option", { value: t }, t)))
+  $("#shadow-color").value = sgen?.color ?? "base.black"
+  $("#shadows").replaceChildren(
+    ...state.groups.elevation.map((name) => {
+      const n = state.reach[name]?.components.length
+      return el("div", { title: f[name] }, el("i", { style: { boxShadow: f[name] } }), `${name.replace("shadow-", "")}${n ? ` · ${n}` : ""}`)
+    }),
+  )
+
+  const d = rem(f["default-transition-duration"])
+  setIfIdle("#duration", d)
+  $("#duration-out").textContent = `${d}ms`
+  const ease = f["default-transition-timing-function"]
+  const options = Object.entries(EASINGS).map(([k, v]) => el("option", { value: v }, k))
+  if (!Object.values(EASINGS).includes(ease)) options.push(el("option", { value: ease }, "Custom"))
+  $("#easing").replaceChildren(...options)
+  $("#easing").value = ease
+  $("#motion-demo i").style.transition = `left ${d}ms ${ease}`
+  $("#reach-motion").textContent = reachText("default-transition-duration")
 }
 
 // --- checks --------------------------------------------------------------------
@@ -228,7 +366,7 @@ function render() {
   renderHeader()
   renderScales()
   renderRoles()
-  renderShape()
+  renderFoundations()
   renderChecks()
 }
 

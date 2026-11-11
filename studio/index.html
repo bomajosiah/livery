@@ -28,7 +28,7 @@
             <button type="submit">Add</button>
           </form>
           <form id="new-scale" class="row add">
-            <input id="new-scale-name" placeholder="brand" aria-label="New scale name" pattern="[a-z][a-z0-9-]*" required />
+            <input id="new-scale-name" placeholder="brand" aria-label="New scale name" pattern="[a-z][a-z0-9\-]*" required />
             <input id="new-scale-seed" type="color" value="#4f46e5" aria-label="Seed colour" />
             <button type="submit">Create</button>
           </form>
@@ -39,12 +39,26 @@
           <div id="roles"></div>
         </section>
         <section>
-          <h2>Shape and type</h2>
+          <h2>Shape</h2>
           <label class="field">
             <span>Radius</span>
             <input id="radius" type="range" min="0" max="1.5" step="0.025" />
             <output id="radius-out"></output>
           </label>
+          <p class="reach" id="reach-radius"></p>
+        </section>
+        <section>
+          <h2>Spacing <button class="reset" data-reset-group="spacing" type="button">Reset</button></h2>
+          <label class="field">
+            <span>Unit</span>
+            <input id="spacing" type="range" min="0.15" max="0.4" step="0.005" />
+            <output id="spacing-out"></output>
+          </label>
+          <div class="ruler" id="spacing-ruler"></div>
+          <p class="reach" id="reach-spacing"></p>
+        </section>
+        <section>
+          <h2>Type <button class="reset" data-reset-group="type" type="button">Reset</button></h2>
           <label class="field stack">
             <span>Sans</span>
             <input id="font-sans" spellcheck="false" />
@@ -53,6 +67,51 @@
             <span>Heading</span>
             <input id="font-heading" spellcheck="false" />
           </label>
+          <label class="field">
+            <span>Base</span>
+            <input id="type-base" type="range" min="0.75" max="1.25" step="0.0125" />
+            <output id="type-base-out"></output>
+          </label>
+          <label class="field stack">
+            <span>Ratio</span>
+            <select id="type-ratio">
+              <option value="">Tailwind</option>
+              <option value="1.067">1.067 · minor second</option>
+              <option value="1.125">1.125 · major second</option>
+              <option value="1.2">1.2 · minor third</option>
+              <option value="1.25">1.25 · major third</option>
+              <option value="1.333">1.333 · perfect fourth</option>
+            </select>
+          </label>
+          <div id="type-scale" class="type-scale"></div>
+          <div id="weights" class="weights"></div>
+        </section>
+        <section>
+          <h2>Elevation <button class="reset" data-reset-group="elevation" type="button">Reset</button></h2>
+          <label class="field">
+            <span>Strength</span>
+            <input id="shadow-intensity" type="range" min="0" max="3" step="0.05" />
+            <output id="shadow-intensity-out"></output>
+          </label>
+          <label class="field stack">
+            <span>Tint</span>
+            <select id="shadow-color"></select>
+          </label>
+          <div id="shadows" class="shadows"></div>
+        </section>
+        <section>
+          <h2>Motion <button class="reset" data-reset-group="motion" type="button">Reset</button></h2>
+          <label class="field">
+            <span>Duration</span>
+            <input id="duration" type="range" min="0" max="400" step="10" />
+            <output id="duration-out"></output>
+          </label>
+          <label class="field stack">
+            <span>Easing</span>
+            <select id="easing"></select>
+          </label>
+          <div class="motion-demo" id="motion-demo"><i></i></div>
+          <p class="reach" id="reach-motion"></p>
         </section>
         <section>
           <h2>Contrast <span id="checks-summary" class="muted"></span></h2>
