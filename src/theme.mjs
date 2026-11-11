@@ -3,6 +3,7 @@
 // named token; the rest of the file stays as a skeleton with placeholders.
 import postcss from "postcss"
 import { MARK } from "./components.mjs"
+import { toReference, resolve } from "./palette.mjs"
 
 // The theme a rule belongs to: ":root" → light, ".dark" → dark, ".theme-x" → x.
 function themeName(selector) {
@@ -11,9 +12,14 @@ function themeName(selector) {
   return m ? m[1].replace(/^theme-/, "") : null
 }
 
-export function decompileTheme(css, fileName = "index.css") {
+/**
+ * palette: primitive scales (see palette.mjs). When given, theme colours that match a
+ * primitive are stored as references ("neutral.900", "base.white / 10%"), and the scales
+ * they use are kept in tokens.primitives.
+ */
+export function decompileTheme(css, fileName = "index.css", { palette, preferred = [] } = {}) {
   const root = postcss.parse(css, { from: fileName })
-  const tokens = { file: fileName, themes: {}, theme: {} }
+  const tokens = { file: fileName, primitives: {}, themes: {}, theme: {} }
   const edits = []
 
   root.walkDecls((decl) => {
@@ -28,7 +34,9 @@ export function decompileTheme(css, fileName = "index.css") {
       group = tokens.themes[t] ??= {}
       key = `themes.${t}.${decl.prop.slice(2)}`
     } else return
-    group[decl.prop.slice(2)] = decl.value
+    const ref = palette && group !== tokens.theme ? toReference(decl.value, palette, preferred) : null
+    if (ref) tokens.primitives[ref.split(".")[0]] = palette[ref.split(".")[0]]
+    group[decl.prop.slice(2)] = ref ?? decl.value
     // Locate the value text in the source so we replace it exactly.
     const start = decl.source.start.offset
     const declText = css.slice(start, decl.source.end.offset)
@@ -41,6 +49,7 @@ export function decompileTheme(css, fileName = "index.css") {
   for (const e of edits.sort((a, b) => b.start - a.start)) {
     skeleton = skeleton.slice(0, e.start) + MARK + e.id + skeleton.slice(e.end)
   }
+  if (!Object.keys(tokens.primitives).length) delete tokens.primitives
   return { tokens, skeleton, lifted: edits.length }
 }
 
@@ -50,6 +59,6 @@ export function compileTheme(tokens, skeleton) {
     const value =
       section === "theme" ? tokens.theme?.[rest.join(".")] : tokens.themes?.[rest[0]]?.[rest.slice(1).join(".")]
     if (value === undefined) throw new Error(`${tokens.file}: no token for ${id}`)
-    return value
+    return resolve(value, tokens.primitives)
   })
 }

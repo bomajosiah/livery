@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Livery</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <strong class="brand">Livery</strong>
+      <span class="sep">/</span>
+      <span id="system-name" class="muted"></span>
+      <span id="source" class="chip"></span>
+      <nav class="seg" id="frames" aria-label="Themes shown">
+        <button data-frames="both" aria-pressed="true">Both</button>
+        <button data-frames="light">Light</button>
+        <button data-frames="dark">Dark</button>
+      </nav>
+    </header>
+    <main class="layout">
+      <aside class="panel">
+        <section>
+          <h2>Scales</h2>
+          <div id="scales"></div>
+          <form id="add-scale" class="row add">
+            <select id="palette-scale" aria-label="Tailwind scale"></select>
+            <button type="submit">Add</button>
+          </form>
+          <form id="new-scale" class="row add">
+            <input id="new-scale-name" placeholder="brand" aria-label="New scale name" pattern="[a-z][a-z0-9-]*" required />
+            <input id="new-scale-seed" type="color" value="#4f46e5" aria-label="Seed colour" />
+            <button type="submit">Create</button>
+          </form>
+        </section>
+        <section>
+          <h2>Roles</h2>
+          <div class="roles-head"><span></span><span>Light</span><span>Dark</span></div>
+          <div id="roles"></div>
+        </section>
+        <section>
+          <h2>Shape and type</h2>
+          <label class="field">
+            <span>Radius</span>
+            <input id="radius" type="range" min="0" max="1.5" step="0.025" />
+            <output id="radius-out"></output>
+          </label>
+          <label class="field stack">
+            <span>Sans</span>
+            <input id="font-sans" spellcheck="false" />
+          </label>
+          <label class="field stack">
+            <span>Heading</span>
+            <input id="font-heading" spellcheck="false" />
+          </label>
+        </section>
+        <section>
+          <h2>Contrast <span id="checks-summary" class="muted"></span></h2>
+          <ul id="checks" class="checks"></ul>
+        </section>
+      </aside>
+      <section class="frames" id="frame-area">
+        <figure data-theme="light"><figcaption>Light</figcaption><iframe title="Light preview"></iframe></figure>
+        <figure data-theme="dark"><figcaption>Dark</figcaption><iframe title="Dark preview"></iframe></figure>
+      </section>
+    </main>
+    <div id="picker" class="picker" hidden>
+      <div class="picker-head">
+        <strong id="picker-title"></strong>
+        <label>Alpha <input id="picker-alpha" placeholder="100%" size="5" /></label>
+      </div>
+      <div id="picker-scales"></div>
+    </div>
+    <p id="error" class="error" role="alert" hidden></p>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

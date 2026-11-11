@@ -1,6 +1,6 @@
 # Livery: the approach
 
-2026-11-11 · Status: **S0 (round trip) passing**; S1 onward not built
+2026-11-11 · Status: **S0 (round trip) passing. S1 (foundations) partly built:** primitive scales and references, ramp generation, contrast checks, and a studio for colour, radius and fonts with a live light and dark preview. Not yet: spacing, type scale, elevation, motion, and token reach. S2 onward not built.
 
 Decided 2026-11-11: name **Livery**, its own open-source repo (`bomajosiah/livery`, MIT), shadcn's default base library (Base UI, `nova` preset). Whether it becomes a product is decided after it's proven to work.
 

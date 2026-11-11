@@ -7,6 +7,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { decompileComponent, compileComponent, unliftedClassStrings } from "./components.mjs"
 import { decompileTheme, compileTheme } from "./theme.mjs"
+import { loadTailwindPalette } from "./palette.mjs"
 
 const json = (v) => JSON.stringify(v, null, 2) + "\n"
 
@@ -41,7 +42,8 @@ export function decompileProject(projectDir, systemDir) {
   }
 
   const css = fs.readFileSync(path.join(projectDir, cssFile), "utf8")
-  const { tokens, skeleton, lifted } = decompileTheme(css, cssFile)
+  const palette = loadTailwindPalette(projectDir)
+  const { tokens, skeleton, lifted } = decompileTheme(css, cssFile, { palette, preferred: [config.tailwind.baseColor] })
   fs.writeFileSync(path.join(systemDir, "tokens.json"), json(tokens))
   fs.mkdirSync(path.dirname(path.join(systemDir, "skeleton", cssFile)), { recursive: true })
   fs.writeFileSync(path.join(systemDir, "skeleton", cssFile), skeleton)

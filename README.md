@@ -4,7 +4,12 @@ Start a design system from shadcn, then customize every part of it, visually or 
 
 shadcn gives you good defaults as code you own. Owning them usually means editing dozens of files of class strings by hand, so most shadcn products end up looking like shadcn with a new accent colour. Livery lifts shadcn out of its source into one structured description of the system: every theme token, every component part, every variant, size and state, named. You edit that description, and Livery compiles it back into shadcn-compatible code your project owns.
 
-Status: **early.** The round trip works: stock shadcn (63 components, Base UI, the `nova` preset) decompiles into a system and compiles back byte for byte. The canvas, the agent tools and upgrades come next. See [APPROACH.md](APPROACH.md).
+Status: **early.**
+- **Round trip:** stock shadcn (63 components, Base UI, the `nova` preset) decompiles into a system and compiles back byte for byte.
+- **Foundations:** theme colours are stored as references to primitive scales (`neutral.900`, `base.white / 10%`), taken from the project's own Tailwind palette. You can generate new scales from a seed colour or a hue and chroma, and every text-on-surface pair gets a WCAG contrast check.
+- **Studio:** edit scales, roles, radius and fonts, and watch the real components update live in light and dark.
+
+Component editing, agent tools (MCP) and upgrades come next. See [APPROACH.md](APPROACH.md).
 
 ## Try it
 
@@ -15,7 +20,15 @@ npm install
 npm run baseline        # a stock shadcn project with every component, in .work/stock
 node bin/livery.mjs decompile .work/stock --to .work/system
 node bin/livery.mjs compile .work/system --into .work/stock
-npm test                # round trip: unit tests, plus stock shadcn byte for byte
+npm test                # unit tests, plus stock shadcn byte for byte
+```
+
+Open the studio on a copy of the project (it compiles the system into that project and starts its Vite for the preview):
+
+```sh
+cp -R .work/stock .work/preview
+node bin/livery.mjs studio .work/system --project .work/preview
+# http://localhost:5310
 ```
 
 ## The system
@@ -23,7 +36,7 @@ npm test                # round trip: unit tests, plus stock shadcn byte for byt
 ```
 system/
   system.json              source style, base library, shadcn version, component list
-  tokens.json              every theme token: light, dark and @theme
+  tokens.json              primitives (colour scales), every theme token as a reference or value, @theme
   components/<name>.json   every class string of every part, variant and state
   skeleton/                the rest of the source, with placeholders
 ```
