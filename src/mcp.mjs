@@ -17,14 +17,23 @@ const VERSION = JSON.parse(fs.readFileSync(new URL("../package.json", import.met
 
 const TOKEN_OPS_HELP = `Token operations (args):
 - set_token { theme: "light"|"dark", name: "primary", value } — value is a primitive reference ("brand.600", "neutral.950 / 10%"), a colour, or any CSS value
-- set_theme_var { name: "radius" | "font-sans" | …, value } — @theme variables (see get_tokens section "theme")
+- set_theme_var { name: "font-heading" | "radius-lg" | …, value } — @theme variables (see get_tokens section "theme")
 - set_scale { scale: "brand", seed: "#4f46e5" } or { scale, hue: 260, chroma: 0.02 } — create or regenerate an 11-step primitive scale (50–950)
 - add_palette_scale { scale: "emerald" } — copy a Tailwind palette scale into the system
 - set_step { scale, step: "500", value: "#4f46e5" } — set one step by hand
 - set_foundation { name, value } — override a Tailwind foundation: spacing, text-sm, text-sm--line-height, font-weight-medium, tracking-tight, shadow-md, default-transition-duration, ease-out…
 - reset_foundation { names: [...] } or { group: ${Object.keys(GROUPS).map((g) => `"${g}"`).join(" | ")} } — back to Tailwind's defaults
 - set_type_scale { base: 1, ratio: 1.2 } — modular type scale (base in rem)
-- set_shadows { intensity: 0–4, color: "neutral.950" } — Tailwind's shadows re-weighted and re-tinted`
+- set_shadows { intensity: 0–4, color: "neutral.950" } — Tailwind's shadows re-weighted and re-tinted
+- set_font { slot: "sans"|"heading"|"mono", family: "Inter Tight", source: "google"|"local" } — Google families load from the compiled CSS`
+
+const DIRECTION_GUIDE = `How to draft directions from a brief:
+1. Read the brief (get_system) and the current system (get_tokens section all; get_component for button, card, input, badge, tabs).
+2. Decide what the product is and how it should feel before choosing values. Each direction is a different answer to the brief, not a variation of one: differ on several real axes at once (colour and its temperature, neutral tint, typeface and type scale, radius, density/spacing, elevation, motion, the shape of key components).
+3. Write each as save_direction with a short name, a rationale of two or three sentences tied to the brief, and ops. Usually: a brand scale (set_scale) and roles that use it in both themes (primary, primary-foreground, ring, accent, sidebar-primary, chart-1…), a neutral scale with a slight tint, fonts, radius (set_token { theme: "light", name: "radius" }: it lives in :root), spacing, set_type_scale, set_shadows, motion, and component ops where the shape should change (button, badge, card, input, tabs).
+4. Keep contrast failures at zero in both themes; save_direction reports them. Prefer roles and foundations over raw values in classes.
+5. Screenshot each direction (screenshot { direction, theme: "both" }) and look: fix what reads wrong, then save again with the same id.
+6. Leave the choice to the person; apply_direction only when they pick one.`
 
 const RECIPE_OPS_HELP = `Component operations (args). Paths name a class list, as get_component shows them:
 parts.<slot> · cva.<name>.base · cva.<name>.variants.<variant>.<key> · cva.<name>.compound.<i>
@@ -99,6 +108,9 @@ export async function startMcp({ systemDir, projectDir }) {
             `Foundations overridden: ${Object.keys(tokens.foundations ?? {}).join(", ") || "none (Tailwind defaults)"}`,
             `Components: ${list.length}; ${list.reduce((n, c) => n + c.checks, 0)} classes bypass the system (see check)`,
             `Contrast failures:\n${failText(failures(tokens))}`,
+            `Directions: ${s.listDirections().map((d) => `${d.id} (${d.name}${d.applied ? ", applied" : ""})`).join(", ") || "none"}`,
+            "",
+            `Brief:\n${s.readBrief().trim() || "No brief yet (set_brief)."}`,
             "",
             TOKEN_OPS_HELP,
             "",
@@ -242,22 +254,89 @@ export async function startMcp({ systemDir, projectDir }) {
         type: "object",
         properties: {
           component: { type: "string", description: "e.g. button. Omit for the specimen" },
+          direction: { type: "string", description: "A direction's id: render it instead of the system" },
           part: { type: "string", description: "A data-slot to outline, e.g. card-header" },
           theme: { type: "string", enum: ["light", "dark", "both"], description: "Default light" },
           width: { type: "number", description: "Viewport width; default 1000" },
         },
       },
-      run: async ({ component = "", part = "", theme = "light", width = 1000 }) => {
+      run: async ({ component = "", direction = "", part = "", theme = "light", width = 1000 }) => {
         if (component) s.componentDetail(component) // fails clearly on an unknown name
-        const base = await previewUrl()
+        let base = await previewUrl()
+        if (direction) base = new URL("/" + s.showDirection(s.readDirection(direction)).preview, base).href
         const content = []
         for (const t of theme === "both" ? ["light", "dark"] : [theme]) {
           const q = new URLSearchParams({ theme: t, ...(component ? { component } : {}), ...(part ? { part } : {}) })
           const shot = await screenshot(`${base}?${q}`, { width, height: 900, maxHeight: 3000, scale: 0.5 })
           if (shot.error) content.push({ type: "text", text: `${t}: ${shot.error}` })
-          if (shot.png) content.push({ type: "text", text: `${t}${component ? ` · ${component}` : " · specimen"}${shot.ready && component && !shot.ready.found ? " (not on screen)" : ""}` }, { type: "image", data: shot.png, mimeType: "image/png" })
+          if (shot.png) content.push({ type: "text", text: `${t}${direction ? ` · ${direction}` : ""}${component ? ` · ${component}` : " · specimen"}${shot.ready && component && !shot.ready.found ? " (not on screen)" : ""}` }, { type: "image", data: shot.png, mimeType: "image/png" })
         }
         return { content }
+      },
+    },
+    {
+      name: "set_brief",
+      description: "Write the system's brief (brief.md): what the product is, who it's for, how it should feel, constraints. Directions are drafted from it.",
+      inputSchema: { type: "object", required: ["text"], properties: { text: { type: "string" } } },
+      run: async ({ text: t }) => {
+        s.writeBrief(t)
+        return text("Saved the brief.")
+      },
+    },
+    {
+      name: "save_direction",
+      description: `Create or replace a direction: an alternative take on the system as a list of operations on top of the current system, with a name and a rationale. Any token or component operation can appear (component operations need args.component). Validated by building it (all or nothing); renders in its own preview; the studio shows directions side by side. Returns what it changes and its checks.\n\n${DIRECTION_GUIDE}`,
+      inputSchema: {
+        type: "object",
+        required: ["name", "ops"],
+        properties: {
+          id: { type: "string", description: "Keep the same id to revise a direction; default from the name" },
+          name: { type: "string" },
+          rationale: { type: "string" },
+          ops: { type: "array", items: { type: "object", required: ["op"], properties: { op: { type: "string", enum: [...TOKEN_OPERATIONS, ...RECIPE_OPERATIONS] }, args: { type: "object" } } } },
+        },
+      },
+      run: async (args) => {
+        const d = s.saveDirection(args)
+        const studio = await findStudio(s.systemDir)
+        return text([
+          `Saved direction ${d.id} (${d.ops.length} operations).${studio ? ` The person can see it in the studio's Directions tab at ${studio.studio}.` : ""}`,
+          `Contrast failures: ${d.checks.contrast.length ? "\n" + failText(d.checks.contrast) : "none"}`,
+          d.checks.components.length ? `Bypassing classes:\n${d.checks.components.map((c) => `${c.component} ${c.path}: ${c.class} (${c.kind})`).join("\n")}` : "",
+          `Changes:\n${d.changes.join("\n")}`,
+        ].filter(Boolean).join("\n"))
+      },
+    },
+    {
+      name: "list_directions",
+      description: "The system's directions: name, rationale, what each changes, contrast failures, and whether it was applied.",
+      inputSchema: { type: "object", properties: { id: { type: "string", description: "Just this one, with its operations" } } },
+      run: async ({ id }) => {
+        const list = id ? [s.readDirection(id)] : s.listDirections()
+        if (!list.length) return text("No directions yet.")
+        return text(list.map((raw) => {
+          const d = s.showDirection(raw)
+          return [`## ${d.id} · ${d.name}${d.applied ? ` (applied ${d.applied.slice(0, 10)})` : ""}`, d.rationale, `Contrast failures: ${d.checks.contrast.length}`, `Changes (${d.changes.length}):\n${d.changes.join("\n")}`, id ? `Operations:\n${JSON.stringify(d.ops, null, 2)}` : ""].filter(Boolean).join("\n")
+        }).join("\n\n"))
+      },
+    },
+    {
+      name: "apply_direction",
+      description: "Make a direction the system: apply its operations to the system and compile into the project. Only when the person has chosen it.",
+      inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+      run: async ({ id }) => {
+        const before = failures(s.readTokens()).length
+        const d = s.applyDirection(id)
+        return text(`Applied ${d.name} (${d.ops.length} operations). Contrast failures: ${before} → ${failures(s.readTokens()).length}. The other directions now build on the new system.`)
+      },
+    },
+    {
+      name: "delete_direction",
+      description: "Delete a direction.",
+      inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+      run: async ({ id }) => {
+        s.deleteDirection(id)
+        return text(`Deleted ${id}.`)
       },
     },
     {
@@ -286,11 +365,22 @@ export async function startMcp({ systemDir, projectDir }) {
       if (method === "initialize")
         return reply({
           protocolVersion: params?.protocolVersion || "2025-06-18",
-          capabilities: { tools: {} },
+          capabilities: { tools: {}, prompts: {} },
           serverInfo: { name: "livery", version: VERSION },
           instructions: "Livery holds a design system lifted from shadcn: tokens (colour roles, scales, foundations) and every component's classes. Call get_system first. Edit only through edit_tokens and edit_component (never the compiled files), then check and screenshot to see the result.",
         })
       if (method === "ping") return reply({})
+      if (method === "prompts/list")
+        return reply({ prompts: [{ name: "draft_directions", description: "Draft distinct directions for the system from its brief", arguments: [{ name: "count", description: "How many (default 3)" }, { name: "brief", description: "The brief, if it isn't saved yet" }] }] })
+      if (method === "prompts/get") {
+        if (params?.name !== "draft_directions") throw new Error(`No prompt ${params?.name}`)
+        const count = Number(params.arguments?.count) || 3
+        const brief = params.arguments?.brief?.trim()
+        return reply({
+          description: "Draft directions from the brief",
+          messages: [{ role: "user", content: { type: "text", text: `${brief ? `Save this as the brief (set_brief), then use it:\n\n${brief}\n\n` : "Use the system's brief (get_system).\n\n"}Draft ${count} distinct directions for this design system with the Livery tools.\n\n${DIRECTION_GUIDE}\n\nFinish with one line per direction: its name and what makes it different.` } }],
+        })
+      }
       if (method === "tools/list") return reply({ tools: TOOLS.map(({ run, ...t }) => t) })
       if (method === "tools/call") {
         const tool = TOOLS.find((t) => t.name === params?.name)

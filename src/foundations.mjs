@@ -17,6 +17,7 @@ export const GROUPS = {
   tracking: ["tracking-tight", "tracking-normal", "tracking-wide"],
   elevation: ["shadow-2xs", "shadow-xs", "shadow-sm", "shadow-md", "shadow-lg", "shadow-xl", "shadow-2xl"],
   motion: ["default-transition-duration", "default-transition-timing-function", "ease-in", "ease-out", "ease-in-out"],
+  font: ["font-mono"],
 }
 export const FOUNDATION_NAMES = Object.values(GROUPS).flat()
 

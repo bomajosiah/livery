@@ -31,6 +31,7 @@ async function sync() {
   await load()
   if (components) components = await (await fetch("/api/components")).json()
   if (current) current = await (await fetch(`/api/components/${current.name}`)).json()
+  if (view === "directions") await loadDirections()
   if (!$("#view-components").hidden) current && !$("#component-detail").hidden ? renderComponent() : renderComponentList()
 }
 setInterval(() => sync().catch(() => {}), 1500)
@@ -391,6 +392,7 @@ load()
 // --- components -----------------------------------------------------------------
 
 const KINDS = { palette: "Tailwind palette colour, not a role", "raw-color": "Colour written as a value", "raw-size": "One-off size", "fixed-duration": "Fixed duration" }
+let view = "foundations"
 let components = null
 let current = null // { name, recipe, checks, tokens }
 let found = null
@@ -410,14 +412,16 @@ $("#tabs").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-view]")
   if (!b) return
   for (const x of $("#tabs").children) x.setAttribute("aria-pressed", String(x === b))
-  const comp = b.dataset.view === "components"
-  $("#view-components").hidden = !comp
-  $("#view-foundations").hidden = comp
-  if (comp) {
+  view = b.dataset.view
+  for (const v of ["foundations", "components", "directions"]) $(`#view-${v}`).hidden = v !== view
+  $("#frame-area").hidden = view === "directions"
+  $("#direction-area").hidden = view !== "directions"
+  if (view === "components") {
     if (!components) components = await (await fetch("/api/components")).json()
     renderComponentList()
     if (current) tell({ component: current.name })
   } else tell({ component: "", part: "" })
+  if (view === "directions") loadDirections()
 })
 
 $("#component-search").addEventListener("input", renderComponentList)
@@ -603,4 +607,94 @@ function renderComponent() {
     ),
   )
   d.replaceChildren(...sections)
+}
+
+// --- directions -------------------------------------------------------------------
+
+let directionData = null
+
+async function loadDirections() {
+  directionData = await (await fetch("/api/directions")).json()
+  renderDirections()
+}
+
+const briefBox = $("#brief")
+const saveBrief = throttle(async () => {
+  const res = await fetch("/api/brief", { method: "POST", body: JSON.stringify({ text: briefBox.value }) })
+  if (!res.ok) return showError((await res.json()).error)
+  known = (await (await fetch("/api/version")).json()).version
+  $("#brief-status").textContent = "saved"
+}, 600)
+briefBox.addEventListener("input", () => (($("#brief-status").textContent = ""), saveBrief()))
+
+const directionTheme = () => ($("#frame-area").dataset.frames === "dark" ? "dark" : "light")
+
+function renderDirections() {
+  const { brief, directions } = directionData
+  if (document.activeElement !== briefBox) briefBox.value = brief
+  $("#no-directions").hidden = directions.length > 0
+  $("#directions").replaceChildren(
+    ...directions.map((d) =>
+      el(
+        "li",
+        { class: d.applied ? "applied" : "" },
+        el("div", { class: "direction-head" }, el("strong", {}, d.name), d.applied ? el("span", { class: "chip" }, "applied") : null),
+        d.rationale ? el("p", {}, d.rationale) : null,
+        el(
+          "p",
+          { class: d.checks.contrast.length ? "fail-text" : "muted" },
+          d.checks.contrast.length ? `${d.checks.contrast.length} contrast failures` : "Contrast passes",
+          ` · ${d.changes.length} changes`,
+        ),
+        el("details", {}, el("summary", {}, "Changes"), el("ul", { class: "changes" }, ...d.changes.map((c) => el("li", {}, c)))),
+        el(
+          "div",
+          { class: "row" },
+          el("button", { onclick: () => applyDirection(d) }, "Use this direction"),
+          el("button", { class: "quiet", onclick: () => removeDirection(d) }, "Delete"),
+        ),
+      ),
+    ),
+  )
+  // The previews, side by side, in the theme the header's toggle shows.
+  const area = $("#direction-area")
+  const want = directions.map((d) => `${d.preview}?theme=${directionTheme()}`)
+  const have = [...area.querySelectorAll("iframe")].map((f) => f.getAttribute("src"))
+  if (JSON.stringify(want) !== JSON.stringify(have)) {
+    area.style.setProperty("--n", Math.max(1, directions.length))
+    area.replaceChildren(
+      ...directions.map((d, i) =>
+        el("figure", {}, el("figcaption", {}, d.name), el("div", { class: "scaled" }, el("iframe", { title: `${d.name} preview`, src: want[i] }))),
+      ),
+    )
+    fitDirections()
+  }
+}
+
+// Render each preview at desktop width and scale it into its column.
+const PREVIEW_WIDTH = 1000
+function fitDirections() {
+  for (const box of document.querySelectorAll("#direction-area .scaled")) {
+    const k = box.clientWidth / PREVIEW_WIDTH
+    box.style.setProperty("--k", k)
+    box.style.height = `${1400 * k}px`
+  }
+}
+addEventListener("resize", fitDirections)
+$("#frames").addEventListener("click", () => view === "directions" && directionData && renderDirections())
+
+async function applyDirection(d) {
+  if (!confirm(`Apply ${d.name} to the system? Its ${d.ops.length} operations change tokens and components.`)) return
+  const res = await fetch(`/api/directions/${d.id}/apply`, { method: "POST" })
+  if (!res.ok) return showError((await res.json()).error)
+  await load()
+  components = null
+  await loadDirections()
+}
+
+async function removeDirection(d) {
+  if (!confirm(`Delete ${d.name}?`)) return
+  const res = await fetch(`/api/directions/${d.id}`, { method: "DELETE" })
+  if (!res.ok) return showError((await res.json()).error)
+  await loadDirections()
 }

@@ -51,6 +51,23 @@ export async function startStudio({ systemDir, projectDir, port = 5310, previewP
       if (url.pathname === "/api/meta") return send(200, { tool: "livery", systemDir: s.systemDir, projectDir: s.projectDir, preview })
       if (url.pathname === "/api/version") return send(200, { version: s.version() })
       if (url.pathname === "/api/state" && req.method === "GET") return send(200, { ...s.state(), preview })
+      if (url.pathname === "/api/brief" && req.method === "POST") {
+        s.writeBrief((await readBody(req)).text)
+        return send(200, { brief: s.readBrief() })
+      }
+      if (url.pathname === "/api/directions" && req.method === "GET") {
+        const origin = new URL(preview).origin
+        return send(200, { brief: s.readBrief(), directions: s.listDirections().map((d) => { const x = s.showDirection(d); return { ...x, preview: `${origin}/${x.preview}` } }) })
+      }
+      const dm = url.pathname.match(/^\/api\/directions\/([a-z0-9-]+)(\/apply)?$/)
+      if (dm && req.method === "POST" && dm[2]) {
+        s.applyDirection(dm[1])
+        return send(200, { ok: true })
+      }
+      if (dm && req.method === "DELETE") {
+        s.deleteDirection(dm[1])
+        return send(200, { ok: true })
+      }
       if (url.pathname === "/api/components" && req.method === "GET") return send(200, s.componentList())
       const m = url.pathname.match(/^\/api\/components\/([a-z0-9-]+)$/)
       if (m && req.method === "GET") return send(200, s.componentDetail(m[1]))

@@ -23,6 +23,7 @@
         <nav class="tabs" id="tabs" aria-label="Editor">
           <button data-view="foundations" aria-pressed="true">Foundations</button>
           <button data-view="components" aria-pressed="false">Components</button>
+          <button data-view="directions" aria-pressed="false">Directions</button>
         </nav>
         <div id="view-components" hidden>
           <div id="component-list">
@@ -30,6 +31,17 @@
             <ul id="components" class="components"></ul>
           </div>
           <div id="component-detail" hidden></div>
+        </div>
+        <div id="view-directions" hidden>
+          <section>
+            <h2>Brief <span id="brief-status" class="muted"></span></h2>
+            <textarea id="brief" rows="9" placeholder="What the product is, who it's for, how it should feel" aria-label="Brief"></textarea>
+          </section>
+          <section>
+            <h2>Directions</h2>
+            <p id="no-directions" class="muted" hidden>None yet. An agent drafts them from the brief with the draft_directions prompt.</p>
+            <ol id="directions" class="directions"></ol>
+          </section>
         </div>
         <div id="view-foundations">
         <section>
@@ -135,6 +147,7 @@
         <figure data-theme="light"><figcaption>Light</figcaption><iframe title="Light preview"></iframe></figure>
         <figure data-theme="dark"><figcaption>Dark</figcaption><iframe title="Dark preview"></iframe></figure>
       </section>
+      <section class="direction-area" id="direction-area" hidden></section>
     </main>
     <div id="picker" class="picker" hidden>
       <div class="picker-head">

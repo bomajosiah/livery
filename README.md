@@ -11,6 +11,8 @@ Status: **early.**
 - **Reach:** every role and foundation shows which components use it and how often, read from the recipes.
 - **Components:** every class of every part, variant and state is editable. You can add and remove variant keys and change defaults; Livery rewrites only those properties in the source, in the file's own style. Each component sheet renders the real component across its variants, and hovering a part outlines it in the preview. Checks flag classes that bypass the system: Tailwind palette colours, raw colours, one-off sizes and fixed durations.
 - **Studio:** edit all of the above and watch the real components update live in light and dark.
+- **Directions:** write a brief, and an agent drafts several distinct takes on the system from it. Each direction is a list of named operations on top of the system, with a name and a rationale, so its changes read as a diff and it replays onto later versions. The studio shows them side by side, rendered from real components; using one applies its operations to the system.
+- **Fonts:** a typeface per slot (sans, heading, mono); Google families load from the compiled CSS.
 - **Agents:** an MCP server gives an agent the same named operations the studio uses, all or nothing per call, plus checks and screenshots of the real components. With the studio open, the person watches the agent's edits land live.
 
 The base kit output and upgrades come next. See [APPROACH.md](APPROACH.md).
@@ -62,8 +64,13 @@ For Claude Code, in the project's `.mcp.json`:
 | `list_components` / `get_component` | Every class list by path, variant keys, defaults, the roles a component uses, classes that bypass the system |
 | `edit_component` | `set_classes`, `add_classes`, `remove_class`, `replace_class`, `add_variant_key`, `remove_variant_key`, `set_default` |
 | `check` | WCAG contrast per theme, and bypassing classes per component |
-| `screenshot` | A component's variant sheet, or the specimen with a part outlined, in light, dark or both, rendered by the project's own Vite |
+| `screenshot` | A component's variant sheet, or the specimen with a part outlined, in light, dark or both, rendered by the project's own Vite; for the system or any direction |
+| `set_brief` | Write the brief directions are drafted from |
+| `save_direction` | Create or revise a direction: name, rationale, and any token or component operations (component ones take `args.component`). Validated by building it; returns its changes and checks |
+| `list_directions` / `apply_direction` / `delete_direction` | Review them, make one the system (when the person picks it), or drop one |
 | `compile` | Write the system as shadcn source into another project |
+
+The server also offers a `draft_directions` prompt (in Claude Code, `/mcp__livery__draft_directions`). It tells the agent how to draft from the brief: decide how the product should feel first, make each direction a different answer on several axes at once, keep contrast failures at zero, screenshot each one and revise it, and leave the choice to the person.
 
 Edits write the system and compile into the project at once. Screenshots use the open studio's preview when there is one, otherwise the server starts its own (headless Chrome or Chromium; set `LIVERY_CHROME` to point at one).
 

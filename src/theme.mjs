@@ -62,5 +62,14 @@ export function compileTheme(tokens, skeleton) {
     if (value === undefined) throw new Error(`${tokens.file}: no token for ${id}`)
     return resolve(value, tokens.primitives)
   })
-  return css + foundationsCss(tokens.foundations)
+  return fontImports(tokens.fonts) + css + foundationsCss(tokens.foundations)
+}
+
+/** @import lines for Google-hosted fonts, first in the file as CSS requires. */
+export function fontImports(fonts) {
+  const families = [...new Set(Object.values(fonts ?? {}).filter((f) => f.source === "google").map((f) => f.family))]
+  if (!families.length) return ""
+  const q = families.map((f) => `family=${f.replace(/ /g, "+")}:wght@400;500;600;700`).join("&")
+  return `@import url("https://fonts.googleapis.com/css2?${q}&display=swap");
+`
 }

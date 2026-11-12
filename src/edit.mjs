@@ -111,6 +111,28 @@ Object.assign(operations, {
   },
 })
 
+const FONT_FALLBACK = { sans: "sans-serif", heading: "sans-serif", mono: "monospace" }
+
+Object.assign(operations, {
+  /**
+   * A typeface for a slot: { slot: "sans" | "heading" | "mono", family: "Inter Tight", source: "google" | "local", fallback }.
+   * Google families are loaded by the compiled CSS; local ones must already be installed in the project.
+   */
+  set_font(tokens, { slot, family, source = "google", fallback }) {
+    if (!(slot in FONT_FALLBACK)) fail("Slots are sans, heading and mono")
+    if (typeof family !== "string" || !/^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(family.trim())) fail("A family is a font name, like Inter Tight")
+    if (!["google", "local"].includes(source)) fail("Source is google or local")
+    family = family.trim()
+    const value = `'${family}', ${fallback ?? FONT_FALLBACK[slot]}`
+    if (slot === "mono") tokens.foundations = { ...(tokens.foundations ?? {}), "font-mono": value }
+    else {
+      if (!(`font-${slot}` in (tokens.theme ?? {}))) fail(`No @theme variable font-${slot}`)
+      tokens.theme[`font-${slot}`] = value
+    }
+    tokens.fonts = { ...(tokens.fonts ?? {}), [slot]: { family, source } }
+  },
+})
+
 export function applyOperation(tokens, op, args, context = {}) {
   const fn = operations[op]
   if (!fn) fail(`Unknown operation ${op}`)

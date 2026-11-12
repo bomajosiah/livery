@@ -44,7 +44,7 @@ test("an agent reads, edits and checks a system over MCP", { skip: !fs.existsSyn
     const init = await c.request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } })
     assert.equal(init.result.serverInfo.name, "livery")
     const { result } = await c.request("tools/list")
-    assert.deepEqual(result.tools.map((t) => t.name), ["get_system", "get_tokens", "edit_tokens", "list_components", "get_component", "edit_component", "check", "screenshot", "compile"])
+    assert.deepEqual(result.tools.map((t) => t.name), ["get_system", "get_tokens", "edit_tokens", "list_components", "get_component", "edit_component", "check", "screenshot", "set_brief", "save_direction", "list_directions", "apply_direction", "delete_direction", "compile"])
 
     const overview = (await c.call("get_system")).content[0].text
     assert.match(overview, /Components: \d+/)
@@ -85,6 +85,45 @@ test("an agent reads, edits and checks a system over MCP", { skip: !fs.existsSyn
     assert.equal(unknown.isError, true)
 
     assert.match((await c.call("check")).content[0].text, /Contrast \(\d+\/\d+ pass\)/)
+
+    // Directions: a brief, a direction as operations, its diff and preview, then applying it.
+    await c.call("set_brief", { text: "A calm tool for accountants." })
+    assert.match((await c.call("get_system")).content[0].text, /A calm tool for accountants/)
+    const prompt = await c.request("prompts/get", { name: "draft_directions", arguments: { count: "2" } })
+    assert.match(prompt.result.messages[0].content.text, /Draft 2 distinct directions/)
+
+    const saved = await c.call("save_direction", { name: "Ledger Green", rationale: "Quiet and exact.", ops: [
+      { op: "set_scale", args: { scale: "moss", seed: "#2f6b4f" } },
+      { op: "set_token", args: { theme: "light", name: "primary", value: "moss.700" } },
+      { op: "set_font", args: { slot: "sans", family: "IBM Plex Sans" } },
+      { op: "set_token", args: { theme: "light", name: "radius", value: "0.25rem" } },
+      { op: "replace_class", args: { component: "badge", from: "rounded-4xl", to: "rounded-sm" } },
+    ] })
+    assert.ok(!saved.isError, saved.content[0].text)
+    const said = saved.content[0].text
+    assert.match(said, /Saved direction ledger-green/)
+    assert.match(said, /light\.primary: brand\.600 → moss\.700/)
+    assert.match(said, /badge cva\.badgeVariants\.base: −rounded-4xl \+rounded-sm/)
+    const previewDir = path.join(project, "livery-preview/d/ledger-green")
+    assert.match(fs.readFileSync(path.join(previewDir, "index.css"), "utf8"), /^@import url\("https:\/\/fonts\.googleapis\.com\/css2\?family=IBM\+Plex\+Sans/)
+    assert.match(fs.readFileSync(path.join(previewDir, "ui/badge.tsx"), "utf8"), /rounded-sm/)
+    assert.doesNotMatch(fs.readFileSync(path.join(previewDir, "Specimen.tsx"), "utf8"), /@\/components\/ui/)
+    // The system itself is untouched until the direction is applied.
+    assert.equal(JSON.parse(fs.readFileSync(path.join(system, "tokens.json"), "utf8")).themes.light.primary, "brand.600")
+
+    const broken = await c.call("save_direction", { name: "Broken", ops: [{ op: "set_token", args: { theme: "light", name: "nope", value: "x" } }] })
+    assert.equal(broken.isError, true)
+    assert.ok(!fs.existsSync(path.join(system, "directions/broken.json")))
+
+    assert.match((await c.call("list_directions")).content[0].text, /ledger-green · Ledger Green/)
+    assert.ok(!(await c.call("apply_direction", { id: "ledger-green" })).isError)
+    const applied = JSON.parse(fs.readFileSync(path.join(system, "tokens.json"), "utf8"))
+    assert.equal(applied.themes.light.primary, "moss.700")
+    assert.match(fs.readFileSync(path.join(project, "src/index.css"), "utf8"), /IBM\+Plex\+Sans/)
+    assert.match(fs.readFileSync(path.join(project, "src/components/ui/badge.tsx"), "utf8"), /rounded-sm/)
+
+    await c.call("delete_direction", { id: "ledger-green" })
+    assert.ok(!fs.existsSync(previewDir))
   } finally {
     c.close()
     fs.rmSync(tmp, { recursive: true, force: true })

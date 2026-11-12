@@ -13,6 +13,7 @@ import { computeReach, tokensOfClass } from "./reach.mjs"
 import { applyRecipeOperation, readRecipe, writeRecipe, recipeOperations, compileComponentInto } from "./recipe-ops.mjs"
 import { componentChecks, classLists } from "./component-checks.mjs"
 import { oklchToHex, parseOklch } from "./color.mjs"
+import * as directions from "./directions.mjs"
 
 const FIXTURES = path.resolve(import.meta.dirname, "../fixtures")
 
@@ -36,18 +37,21 @@ export function openSystem({ systemDir, projectDir }) {
   }
 
   // The variant sheets: for each component, its cva entries and the export that renders them.
-  const writeSheets = () => {
-    if (!fs.existsSync(previewDir)) return
+  const sheetsFor = (overrides = {}) => {
     const sheets = {}
     for (const name of system.components) {
-      const recipe = readRecipe(systemDir, name)
+      const recipe = overrides[name] ?? readRecipe(systemDir, name)
       const entries = Object.entries(recipe.cva ?? {})
         .filter(([, e]) => e.usedBy?.length && Object.keys(e.variants ?? {}).length)
         .map(([cva, e]) => ({ cva, export: e.usedBy[0], variants: Object.fromEntries(Object.entries(e.variants).map(([d, keys]) => [d, Object.keys(keys)])), defaults: e.defaults ?? {} }))
       if (entries.length) sheets[name] = entries
     }
+    return sheets
+  }
+  const writeSheets = () => {
+    if (!fs.existsSync(previewDir)) return
     const file = path.join(previewDir, "sheets.json")
-    const text = JSON.stringify(sheets, null, 2) + "\n"
+    const text = JSON.stringify(sheetsFor(), null, 2) + "\n"
     if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== text) fs.writeFileSync(file, text)
   }
 
@@ -171,10 +175,64 @@ export function openSystem({ systemDir, projectDir }) {
     let v = fs.statSync(tokensFile).mtimeMs
     const dir = path.join(systemDir, "components")
     for (const f of fs.readdirSync(dir)) v = Math.max(v, fs.statSync(path.join(dir, f)).mtimeMs)
+    // Directions and the brief too (a deleted direction changes the folder's mtime).
+    for (const p of [path.join(systemDir, "brief.md"), path.join(systemDir, "directions")]) if (fs.existsSync(p)) v = Math.max(v, fs.statSync(p).mtimeMs)
+    const dd = path.join(systemDir, "directions")
+    if (fs.existsSync(dd)) for (const f of fs.readdirSync(dd)) v = Math.max(v, fs.statSync(path.join(dd, f)).mtimeMs)
     return v
   }
 
+  // --- brief and directions ---------------------------------------------------------
+  const briefFile = path.join(systemDir, "brief.md")
+  const readBrief = () => (fs.existsSync(briefFile) ? fs.readFileSync(briefFile, "utf8") : "")
+  const writeBrief = (text) => {
+    if (typeof text !== "string") throw Object.assign(new Error("A brief is text"), { status: 400 })
+    fs.writeFileSync(briefFile, text.trim() + "\n")
+  }
+
+  const recipeOf = (name) => readRecipe(systemDir, name)
+  const base = () => ({ tokens: readTokens(), readRecipe: recipeOf })
+  const build = (ops) => directions.applyOps({ tokens: readTokens(), readRecipe: recipeOf, components: system.components }, ops, { palette, defaults })
+  const ctx = { systemDir, projectDir, system, readRecipe: recipeOf, fixturesDir: FIXTURES, sheets: sheetsFor }
+
+  /** A direction with what it changes, its checks, and its preview path (rebuilt from the current system). */
+  const showDirection = (d) => {
+    const built = build(d.ops)
+    return { ...d, changes: directions.diff(base(), built), checks: directions.directionChecks(built), preview: directions.materialize(ctx, d.id, built) }
+  }
+
+  /** Create or replace a direction: { id?, name, rationale, ops }. Validates by building it. */
+  const saveDirection = ({ id, name, rationale = "", ops }) => {
+    if (typeof name !== "string" || !name.trim()) throw Object.assign(new Error("A direction needs a name"), { status: 400 })
+    id = id || directions.slug(name)
+    build(ops)
+    const existing = directions.listDirections(systemDir).find((d) => d.id === id)
+    directions.writeDirection(systemDir, { id, name: name.trim(), rationale, ops, created: existing?.created ?? new Date().toISOString() })
+    return showDirection(directions.readDirection(systemDir, id))
+  }
+
+  /** Make a direction the system: its operations are applied to the system and compiled. */
+  const applyDirection = (id) => {
+    const d = directions.readDirection(systemDir, id)
+    const built = build(d.ops)
+    writeTokens(built.tokens)
+    for (const [name, recipe] of Object.entries(built.recipes)) {
+      writeRecipe(systemDir, name, recipe)
+      compileComponentInto(systemDir, name, projectDir)
+    }
+    writeSheets()
+    directions.writeDirection(systemDir, { ...d, applied: new Date().toISOString() })
+    return d
+  }
+
   return {
+    readBrief, writeBrief, saveDirection, applyDirection, showDirection,
+    listDirections: () => directions.listDirections(systemDir),
+    readDirection: (id) => directions.readDirection(systemDir, id),
+    deleteDirection: (id) => {
+      directions.deleteDirection(systemDir, id)
+      directions.prunePreviews(projectDir, directions.listDirections(systemDir).map((d) => d.id))
+    },
     systemDir, projectDir, system, palette, defaults, previewDir,
     readTokens, writeTokens, writeSheets, installPreview, tokenOp, recipeOp, tokenOps, recipeOps,
     state, componentList, componentDetail, effectiveFoundations, hexOf, version,
